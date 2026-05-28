@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { capexDir, ensureCapexDir } from "./paths.js";
 
-export const DEFAULT_API_URL = process.env.CAPEX_API_URL || "http://localhost:3000";
+export const DEFAULT_API_URL = process.env.CAPEX_API_URL || "https://capex-ten.vercel.app";
 
 export function authFile() {
   return path.join(capexDir(), "auth.json");
