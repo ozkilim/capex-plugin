@@ -1,7 +1,27 @@
 import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import lockfile from "proper-lockfile";
 import { ensureCapexDir, sessionFile, lifetimeFile, freshState } from "../src/paths.js";
 import { estimateSavings } from "../src/savings-model.js";
+import { authFile } from "../src/remote.js";
+
+// If the machine is linked to a CAPEX account, push the updated lifetime
+// totals in a detached process so the hook returns immediately.
+function maybeSync() {
+  try {
+    if (!fs.existsSync(authFile())) return;
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const child = spawn(process.execPath, [path.join(here, "sync.js")], {
+      detached: true,
+      stdio: "ignore"
+    });
+    child.unref();
+  } catch {
+    // never block tool flow on sync
+  }
+}
 
 const CAPEX_TOOL_PREFIX = "mcp__plugin_capex_code__";
 
@@ -138,6 +158,7 @@ function main() {
 
   withLockedUpdate(sFile, apply);
   withLockedUpdate(lifetimeFile(), apply);
+  maybeSync();
 }
 
 try {
