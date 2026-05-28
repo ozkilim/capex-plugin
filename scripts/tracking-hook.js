@@ -3,6 +3,8 @@ import lockfile from "proper-lockfile";
 import { ensureCapexDir, sessionFile, lifetimeFile, freshState } from "../src/paths.js";
 import { estimateSavings } from "../src/savings-model.js";
 
+const CAPEX_TOOL_PREFIX = "mcp__plugin_capex_code__";
+
 function readStdin() {
   try {
     return fs.readFileSync(0, "utf8");
@@ -25,9 +27,7 @@ function atomicWrite(file, obj) {
   fs.renameSync(tmp, file);
 }
 
-// Update a state file under an exclusive lock to survive parallel hook fires.
 function withLockedUpdate(file, mutate) {
-  // Ensure the file exists so lockfile has a target.
   if (!fs.existsSync(file)) {
     try { atomicWrite(file, freshState()); } catch {}
   }
@@ -58,6 +58,48 @@ function toolShortName(toolName) {
   return idx === -1 ? toolName : toolName.slice(idx + 2);
 }
 
+// Pull any text out of the various tool_response shapes Claude Code may pass.
+function extractText(tr) {
+  if (!tr) return "";
+  if (typeof tr === "string") return tr;
+  if (Array.isArray(tr)) return tr.map((x) => (x && x.text) || "").join("\n");
+  if (Array.isArray(tr.content)) return tr.content.map((x) => (x && x.text) || "").join("\n");
+  return "";
+}
+
+// Claude Code does not pass the MCP result's _meta inside tool_response to the
+// hook (it surfaces separately as mcpMeta), so reconstruct the savings meta
+// from tool_name + tool_input, which are always present. Fall back to any
+// _meta.capex if a future version does pass it.
+function deriveMeta(event) {
+  const direct = event?.tool_response?._meta?.capex || event?.mcpMeta?._meta?.capex;
+  if (direct) return direct;
+
+  const short = toolShortName(event.tool_name);
+  const input = event.tool_input || {};
+  switch (short) {
+    case "Search": {
+      const text = extractText(event.tool_response);
+      const matches = text ? (text.match(/^>\s/gm) || []).length : 0;
+      return { mode: "search", matches, filesScanned: 0 };
+    }
+    case "Edit":
+      return { mode: "edit", batchSize: Array.isArray(input.edits) ? input.edits.length : 1 };
+    case "Read": {
+      let totalLines = 0;
+      const sig = !!input.signatures_only;
+      if (sig && input.file) {
+        try { totalLines = fs.readFileSync(input.file, "utf8").split("\n").length; } catch {}
+      }
+      return { mode: "read", signaturesOnly: sig, truncated: false, totalLines };
+    }
+    case "Write":
+      return { mode: "write" };
+    default:
+      return null;
+  }
+}
+
 function main() {
   ensureCapexDir();
   const raw = readStdin();
@@ -74,8 +116,10 @@ function main() {
     return;
   }
 
-  // PostToolUse
-  const meta = event?.tool_response?._meta?.capex;
+  // PostToolUse: only track CAPEX MCP tools (matcher is catch-all, filter here).
+  if (!event.tool_name || !event.tool_name.includes(CAPEX_TOOL_PREFIX)) return;
+
+  const meta = deriveMeta(event);
   if (!meta) return;
 
   const saved = estimateSavings(meta);

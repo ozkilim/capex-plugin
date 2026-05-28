@@ -2,7 +2,7 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "mcp__plugin_capex_code__.*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
