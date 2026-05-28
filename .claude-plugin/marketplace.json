@@ -1,0 +1,13 @@
+{
+  "name": "capex-marketplace",
+  "owner": { "name": "CAPEX" },
+  "metadata": { "description": "CAPEX: cost-saving tools for Claude Code" },
+  "plugins": [
+    {
+      "name": "capex",
+      "source": "./",
+      "description": "Token-efficient file tools + live savings dashboard",
+      "version": "0.1.0"
+    }
+  ]
+}
