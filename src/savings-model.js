@@ -99,6 +99,22 @@ export function estimateSavings(meta, ctx = {}) {
       // Suppresses a verification command's full output (re-billed every turn).
       return fromRoundtrips(1);
     }
+    case "git": {
+      // Compacts a high-frequency git command (status/diff/log/...). Primary
+      // win is a context-SIZE saving: the suppressed lines (diff hunks, log
+      // bodies, status boilerplate) never enter context. A large suppressed
+      // diff/log would also be re-billed each later turn, so credit one avoided
+      // roundtrip when the suppression is substantial.
+      const suppressed = Math.max(0, meta.linesSuppressed ?? 0);
+      const ctxTokens = Math.round(suppressed * 10 * 0.8);
+      const rts = suppressed >= 40 ? 1 : 0;
+      return {
+        tokensSaved: ctxTokens + Math.round(rts * rtTokens),
+        roundtripsSaved: rts,
+        msSaved: rts * BASELINE_TURN_MS,
+        usdSaved: (ctxTokens / 1_000_000) * PRICE_INPUT_PER_MTOK + rts * rtUsd,
+      };
+    }
     case "sql": {
       // One Sql call replaces a sqlite3 Bash invocation (often part of a loop).
       return fromRoundtrips(meta.ran === false ? 0 : 1);

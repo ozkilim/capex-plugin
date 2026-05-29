@@ -209,6 +209,20 @@ function deriveMeta(event) {
     }
     case "Run":
       return { mode: "run" };
+    case "Git": {
+      // We can't know the real suppressed-line count from the input alone (it's
+      // computed at run time), so estimate conservatively per op. Real numbers
+      // flow through when Claude Code passes the MCP _meta.
+      const op = input.op;
+      if (op === "log") {
+        const n = Math.max(1, Math.min(50, input.n || 15));
+        return { mode: "git", op, linesSuppressed: n * 5 };
+      }
+      if (op === "diff" && !input.full) return { mode: "git", op, linesSuppressed: 30 };
+      if (op === "status") return { mode: "git", op, linesSuppressed: 12 };
+      if (op === "commit") return { mode: "git", op, linesSuppressed: 4 };
+      return { mode: "git", op, linesSuppressed: 0 };
+    }
     case "View": {
       const text = extractText(event.tool_response);
       const rm = text.match(/:(\d+)-(\d+)/);

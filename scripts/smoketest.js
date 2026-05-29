@@ -53,7 +53,7 @@ function runSmoke() {
 
         const list = await send("tools/list", {});
         const names = (list.result?.tools || []).map((t) => t.name).sort();
-        assert.deepStrictEqual(names, ["Def", "Edit", "Imports", "Insert", "Map", "Outline", "Read", "Refs", "Replace", "Run", "RunTests", "Search", "Sql", "View", "Where", "Write"], "expected sixteen tools");
+        assert.deepStrictEqual(names, ["Def", "Edit", "Git", "Imports", "Insert", "Map", "Outline", "Read", "Refs", "Replace", "Run", "RunTests", "Search", "Sql", "View", "Where", "Write"], "expected seventeen tools");
 
         const call = await send("tools/call", {
           name: "Search",

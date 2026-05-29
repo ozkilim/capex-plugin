@@ -31,6 +31,25 @@ test("search with no matches saves nothing", () => {
   assert.strictEqual(r.tokensSaved, 0);
 });
 
+// --- git: context-size saving, +1 roundtrip when suppression is large ------
+test("git credits a context-size saving from suppressed lines", () => {
+  const r = estimateSavings({ mode: "git", op: "diff", linesSuppressed: 20 });
+  assert.strictEqual(r.roundtripsSaved, 0, "small diff: no avoided roundtrip");
+  assert.strictEqual(r.tokensSaved, Math.round(20 * 10 * 0.8));
+});
+
+test("git credits an avoided roundtrip when suppression is large", () => {
+  const r = estimateSavings({ mode: "git", op: "log", linesSuppressed: 100 });
+  assert.strictEqual(r.roundtripsSaved, 1);
+  assert.ok(r.tokensSaved > Math.round(100 * 10 * 0.8), "includes the roundtrip tokens too");
+});
+
+test("git with nothing suppressed saves nothing", () => {
+  const r = estimateSavings({ mode: "git", op: "add", linesSuppressed: 0 });
+  assert.strictEqual(r.tokensSaved, 0);
+  assert.strictEqual(r.roundtripsSaved, 0);
+});
+
 // --- live transcript context overrides the flat constant ------------------
 test("roundtrip pricing uses live per-turn context when provided", () => {
   const ctx = { perRoundtripTokens: 9000, perRoundtripUsd: 0.02 };

@@ -16,6 +16,7 @@ import { doImports, importsSchema } from "../src/imports.js";
 import { doInsert, insertSchema } from "../src/insert.js";
 import { doWhere, whereSchema } from "../src/where.js";
 import { doRun, runSchema } from "../src/run.js";
+import { doGit, gitSchema } from "../src/git.js";
 
 const server = new Server(
   { name: "capex-code", version: "0.1.0" },
@@ -102,6 +103,11 @@ const tools = {
     description: "Run a build/lint/typecheck/format command and return ONLY the exit code plus error-relevant lines — never the full output. Use instead of Bash for verification commands to keep large passing output out of context.",
     inputSchema: runSchema,
     handler: doRun
+  },
+  Git: {
+    description: "Token-efficient git: pass op (status|diff|log|add|commit|push|pull|branch). Returns the compact essence — grouped one-line status, per-file +/- diff summary (full hunks only with full:true), one-line log, and 'ok <sha>' for commits — instead of git's verbose output. Use instead of running git through Bash to keep large, repeatedly-re-billed git output out of context.",
+    inputSchema: gitSchema,
+    handler: doGit
   }
 };
 
