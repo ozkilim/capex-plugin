@@ -90,22 +90,25 @@ For offline development, `npm test` runs the unit suite plus a standalone MCP se
 
 ## Uninstall
 
+Run the cleanup command **first, while the plugin is still installed** (a hook
+can't run after uninstall, so the self-installed status line must be removed
+beforehand):
+
+```
+/capex-uninstall
+```
+
+This removes everything CAPEX wrote outside its own dir — the status line, a
+pinned `"agent": "capex:code"`, and CAPEX permission entries — while leaving any
+custom status line of yours untouched. It keeps your lifetime savings in
+`~/.capex`; pass `--purge` (`/capex-uninstall --purge`) to delete those too.
+
+Then remove the plugin itself and restart Claude Code:
+
 ```
 /plugin uninstall capex@capex-marketplace
 /plugin marketplace remove capex-marketplace
 ```
-
-Then remove local state and the self-installed status line (a hook can't run
-after uninstall, so the `statusLine` entry must be removed by hand):
-
-```bash
-rm -rf ~/.capex
-```
-
-Open `~/.claude/settings.json` and delete the `statusLine` block whose `command`
-ends in `capex/.../scripts/status-line.js` (otherwise the status line errors
-because the script is gone). If you pinned the agent, also remove
-`"agent": "capex:code"`.
 
 ## License
 
