@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import lockfile from "proper-lockfile";
@@ -25,6 +26,63 @@ function maybeSync() {
 }
 
 const CAPEX_TOOL_PREFIX = "mcp__plugin_capex_code__";
+
+// A statusLine command is "ours" if it shells out to CAPEX's status-line.js.
+// We detect by substring so we recognize our own line even when the install
+// path has changed (e.g. after a version bump or reinstall).
+function isCapexStatusLine(cmd) {
+  return typeof cmd === "string" && cmd.includes("status-line.js") && cmd.includes("capex");
+}
+
+// Self-install the CAPEX status line into the user's ~/.claude/settings.json on
+// session start, so the bottom-line savings indicator appears with zero manual
+// setup and survives reinstalls/version bumps. Idempotent and respectful:
+//   - if there is no statusLine, we add ours;
+//   - if the existing statusLine is already ours (possibly a stale path), we
+//     refresh it to THIS install's path;
+//   - if the user has their own non-CAPEX statusLine, we leave it untouched;
+//   - we only write when something actually changes.
+// Never throws into the hook flow.
+function ensureStatusLine() {
+  try {
+    // Absolute path to the status-line.js shipped alongside this hook. Using the
+    // live path means a version bump (new CLAUDE_PLUGIN_ROOT) self-corrects.
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const statusLinePath = path.join(here, "status-line.js");
+    const desiredCommand = `node ${statusLinePath}`;
+
+    const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
+
+    let settings = {};
+    if (fs.existsSync(settingsPath)) {
+      // If settings.json is present but unparseable, do NOT touch it — we must
+      // never risk clobbering a user's hand-edited config.
+      try {
+        settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+      } catch {
+        return;
+      }
+    }
+    if (settings == null || typeof settings !== "object") return;
+
+    const existing = settings.statusLine;
+    const existingCmd = existing && existing.command;
+
+    // Respect a user's own status line.
+    if (existing && !isCapexStatusLine(existingCmd)) return;
+
+    // Already correct → nothing to do (keeps us from rewriting every session).
+    if (existing && existingCmd === desiredCommand) return;
+
+    settings.statusLine = { type: "command", command: desiredCommand };
+
+    const tmp = settingsPath + ".capex.tmp";
+    fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n", "utf8");
+    fs.renameSync(tmp, settingsPath);
+  } catch {
+    // never block session start on status-line setup
+  }
+}
 
 function readStdin() {
   try {
@@ -185,6 +243,7 @@ function main() {
     if (!fs.existsSync(sFile)) {
       try { atomicWrite(sFile, freshState()); } catch {}
     }
+    ensureStatusLine();
     return;
   }
 

@@ -25,24 +25,23 @@ ln -s "$(which node)" /usr/local/bin/node
 
 No `sudo` is needed on most macOS installs.
 
-## Status line setup
+## Status line
 
-CAPEX does not auto-install the status line (by design). Add this to your `~/.claude/settings.json`:
+**The status line installs itself — no manual setup.** On every session start, CAPEX's `SessionStart` hook writes the status-line command into your `~/.claude/settings.json`, pointing at the current install. So after `/plugin install` + restart, the savings indicator just appears, and it survives reinstalls and version bumps automatically (the hook always refreshes the path to the live install).
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "node ~/.claude/plugins/marketplaces/capex-marketplace/capex/scripts/status-line.js"
-  }
-}
-```
+It is **idempotent and respectful**:
 
-Verify the path after installing by inspecting `~/.claude/plugins/` — the exact directory is created by Claude Code's plugin system when you install. The status line shows, for example:
+- If you have no status line, CAPEX adds its own.
+- If your status line is already CAPEX's (even at a stale path), it's refreshed to the current install path.
+- **If you have your own custom status line, CAPEX leaves it completely untouched.**
+
+The status line shows, for example:
 
 ```
 💰 CAPEX est. session savings: $0.12 · 4.2k tokens · 3.4s · 7 roundtrips
 ```
+
+To opt out, set your own `statusLine` in `~/.claude/settings.json` (CAPEX won't overwrite it), or uninstall the plugin. Note that because a hook can't run after uninstall, removing the plugin leaves the `statusLine` entry behind — delete it from `settings.json` if you want it gone.
 
 ## Verify
 
@@ -93,13 +92,20 @@ For offline development, `npm test` runs the unit suite plus a standalone MCP se
 
 ```
 /plugin uninstall capex@capex-marketplace
+/plugin marketplace remove capex-marketplace
 ```
 
-Then remove local state:
+Then remove local state and the self-installed status line (a hook can't run
+after uninstall, so the `statusLine` entry must be removed by hand):
 
 ```bash
 rm -rf ~/.capex
 ```
+
+Open `~/.claude/settings.json` and delete the `statusLine` block whose `command`
+ends in `capex/.../scripts/status-line.js` (otherwise the status line errors
+because the script is gone). If you pinned the agent, also remove
+`"agent": "capex:code"`.
 
 ## License
 
