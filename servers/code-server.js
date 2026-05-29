@@ -69,7 +69,7 @@ const tools = {
     handler: doReplace
   },
   RunTests: {
-    description: "Run the test suite and return ONLY the failures plus a pass/fail count — not the full runner output. Use this instead of running tests via Bash, especially in an edit-test loop, to keep huge passing-test output out of context.",
+    description: "Run the test suite and return ONLY the failures plus a pass/fail count — not the full runner output. Supports Node (node --test), pytest, jest, and vitest (detected from the command; pass e.g. command:'pytest -q' or 'npx vitest run'). Use this instead of running tests via Bash, especially in an edit-test loop, to keep huge passing-test output out of context.",
     inputSchema: runTestsSchema,
     handler: doRunTests
   },
