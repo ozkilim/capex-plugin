@@ -1,4 +1,8 @@
-node_modules/
+# node_modules is intentionally committed (vendored) so the plugin works on a
+# fresh `/plugin install` with zero setup — Claude Code clones the repo but does
+# NOT run `npm install`. All deps are pure-JS or portable wasm (no native
+# binaries), so the vendored tree is cross-platform.
 .DS_Store
 *.log
 .capex-test/
+bench/results.json

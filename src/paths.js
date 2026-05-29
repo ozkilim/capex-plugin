@@ -29,6 +29,6 @@ export function freshState() {
     msSaved: 0,
     usdSaved: 0,
     toolCalls: 0,
-    byTool: { Search: 0, Edit: 0, Read: 0, Write: 0 }
+    byTool: { Search: 0, Edit: 0, Read: 0, Write: 0, Outline: 0, Refs: 0, Def: 0, Sql: 0, Replace: 0, RunTests: 0, View: 0, Map: 0, Imports: 0, Insert: 0, Where: 0, Run: 0 }
   };
 }

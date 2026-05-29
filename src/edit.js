@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { hasParseErrors } from "./ast.js";
 
 export const editSchema = {
   type: "object",
@@ -69,13 +70,36 @@ function findFuzzyRanges(text, needle) {
   return ranges;
 }
 
+// On a failed match, point the model at the closest existing lines so it can
+// fix the edit in ONE retry instead of re-reading the whole file (a 2-4 turn
+// waste). Cheap line-overlap similarity against the needle's first real line.
+function nearMatchHint(text, needle) {
+  const needleLine = (needle.split("\n").find((l) => l.trim().length > 3) || "").trim();
+  if (!needleLine) return "";
+  const want = new Set(needleLine.replace(/\s+/g, " ").split(" ").filter((t) => t.length > 1));
+  if (!want.size) return "";
+  const lines = text.split("\n");
+  const scored = [];
+  for (let i = 0; i < lines.length; i++) {
+    const toks = lines[i].replace(/\s+/g, " ").trim().split(" ").filter((t) => t.length > 1);
+    if (!toks.length) continue;
+    let hit = 0;
+    for (const t of toks) if (want.has(t)) hit++;
+    const score = hit / want.size;
+    if (score >= 0.4) scored.push({ i, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.slice(0, 3).map((s) => `  ${s.i + 1}: ${lines[s.i].trim().slice(0, 160)}`);
+  return top.length ? `\nClosest existing lines (old_string must match the file exactly):\n${top.join("\n")}` : "";
+}
+
 function applyEditsToText(text, fileEdits) {
   // Apply edits sequentially; each edit re-scans the current text.
   let cur = text;
   for (const e of fileEdits) {
     const ranges = findFuzzyRanges(cur, e.old_string);
     if (ranges.length === 0) {
-      throw new Error(`No match for old_string in ${e.file}`);
+      throw new Error(`No match for old_string in ${e.file}.${nearMatchHint(cur, e.old_string)}`);
     }
     if (!e.replace_all && ranges.length > 1) {
       throw new Error(`Found ${ranges.length} matches for old_string in ${e.file}; use replace_all or a more specific string`);
@@ -120,7 +144,16 @@ export async function doEdit(args = {}) {
       try { fs.writeFileSync(abs, original, "utf8"); } catch {}
       throw err;
     }
-    summaries.push(`${file}: applied ${fileEdits.length} edit(s)`);
+    // Fused verify: parse-check the edited file so the model gets immediate
+    // syntax feedback in THIS turn instead of spending a separate Bash check
+    // turn (and a retry turn if it broke). Only for supported languages.
+    let status = "";
+    try {
+      const bad = await hasParseErrors(abs);
+      if (bad === true) status = " ⚠ introduced a syntax error";
+      else if (bad === false) status = " ✓ parses";
+    } catch {}
+    summaries.push(`${file}: applied ${fileEdits.length} edit(s)${status}`);
   }
 
   return {

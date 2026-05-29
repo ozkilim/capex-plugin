@@ -2,7 +2,7 @@
   "mcpServers": {
     "code": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/code-server.js"],
+      "args": ["--no-warnings", "${CLAUDE_PLUGIN_ROOT}/servers/code-server.js"],
       "alwaysLoad": true
     }
   }

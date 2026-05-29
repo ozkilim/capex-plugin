@@ -13,6 +13,8 @@ Inside a Claude Code session, run:
 
 Then **restart Claude Code**. After restart the `capex:code` agent is active and the CAPEX MCP tools are available.
 
+That's the whole install. There is **no `npm install` step** — dependencies are vendored into the repo, so the plugin works the moment it's cloned. All deps are pure-JS or portable wasm (no native binaries), so it works the same on macOS, Linux, and Windows.
+
 ## macOS nvm fix (read this if hooks fail)
 
 If you use nvm to manage Node on macOS, plugin hooks and the MCP server may fail with `node: command not found`, because Claude Code spawns them with a minimal `PATH`. Fix it by symlinking your Node binary into a standard location:

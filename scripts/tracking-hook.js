@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import lockfile from "proper-lockfile";
 import { ensureCapexDir, sessionFile, lifetimeFile, freshState } from "../src/paths.js";
 import { estimateSavings } from "../src/savings-model.js";
+import { sumTranscript, perRoundtrip } from "../src/transcript.js";
 import { authFile } from "../src/remote.js";
 
 // If the machine is linked to a CAPEX account, push the updated lifetime
@@ -113,6 +114,57 @@ function deriveMeta(event) {
       }
       return { mode: "read", signaturesOnly: sig, truncated: false, totalLines };
     }
+    case "Refs":
+    case "Def": {
+      const text = extractText(event.tool_response);
+      const files = text ? (text.match(/^[^\s(].*[./].*$/gm) || []).length : 0;
+      return { mode: short === "Refs" ? "refs" : "def", files };
+    }
+    case "Sql":
+      return { mode: "sql", ran: true };
+    case "Replace": {
+      const text = extractText(event.tool_response);
+      const fm = text.match(/across (\d+) file/);
+      const om = text.match(/Replaced (\d+) occurrence/);
+      return { mode: "replace", files: fm ? Number(fm[1]) : 0, occurrences: om ? Number(om[1]) : 0 };
+    }
+    case "RunTests":
+      return { mode: "runtests" };
+    case "Map": {
+      const text = extractText(event.tool_response);
+      const sourceFiles = (text.match(/\s::\s/g) || []).length;
+      return { mode: "map", files: text ? text.split("\n").length : 0, sourceFiles };
+    }
+    case "Imports": {
+      const text = extractText(event.tool_response);
+      const edges = text ? (text.match(/^[^\s].*:\d+:/gm) || []).length : 0;
+      return { mode: "imports", files: edges, edges };
+    }
+    case "Insert": {
+      const text = extractText(event.tool_response);
+      return { mode: "insert", inserted: /Inserted \d+ line/.test(text) };
+    }
+    case "Where": {
+      const text = extractText(event.tool_response);
+      const fm = text.match(/across (\d+) file/);
+      return { mode: "where", files: fm ? Number(fm[1]) : 0 };
+    }
+    case "Run":
+      return { mode: "run" };
+    case "View": {
+      const text = extractText(event.tool_response);
+      const rm = text.match(/:(\d+)-(\d+)/);
+      const linesReturned = rm ? Number(rm[2]) - Number(rm[1]) + 1 : 0;
+      return { mode: "view", found: rm ? 1 : 0, linesReturned, totalLines: 0 };
+    }
+    case "Outline": {
+      // Reconstruct from result text: count file-header lines (a path line is
+      // not indented and contains a path/extension). linesElided is unknown
+      // from text, so approximate per covered file.
+      const text = extractText(event.tool_response);
+      const files = text ? (text.match(/^[^\s(].*[./].*$/gm) || []).length : 0;
+      return { mode: "outline", files, linesElided: files * 40 };
+    }
     case "Write":
       return { mode: "write" };
     default:
@@ -142,7 +194,21 @@ function main() {
   const meta = deriveMeta(event);
   if (!meta) return;
 
-  const saved = estimateSavings(meta);
+  // Price avoided roundtrips at THIS session's real average per-turn context
+  // cost (read from the live transcript), not a fixed constant. Falls back to
+  // the model's conservative default if the transcript isn't readable yet.
+  let ctx = {};
+  if (event.transcript_path) {
+    try {
+      const cum = sumTranscript(event.transcript_path);
+      if (cum.turns > 0) {
+        const rt = perRoundtrip(cum);
+        ctx = { perRoundtripTokens: rt.tokens, perRoundtripUsd: rt.usd };
+      }
+    } catch { /* fall back to defaults */ }
+  }
+
+  const saved = estimateSavings(meta, ctx);
   const short = toolShortName(event.tool_name);
 
   const apply = (state) => {

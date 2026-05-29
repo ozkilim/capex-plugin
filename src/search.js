@@ -15,7 +15,7 @@ export const searchSchema = {
       description: "Optional regex matched per-line. Multiline allowed via (?s)."
     },
     max_results: { type: "number", default: 50 },
-    context_lines: { type: "number", default: 2 },
+    context_lines: { type: "number", default: 0, description: "Lines of context around each hit. Default 0 = terse `file:line: text` (cheapest). Set >0 only when you need surrounding code." },
     cwd: { type: "string" }
   }
 };
@@ -42,7 +42,7 @@ export async function doSearch(args = {}) {
     ? args.file_glob_patterns
     : ["**/*"];
   const maxResults = args.max_results ?? 50;
-  const contextLines = args.context_lines ?? 2;
+  const contextLines = args.context_lines ?? 0;
 
   const files = await glob(patterns, {
     cwd,
@@ -87,9 +87,15 @@ export async function doSearch(args = {}) {
     filesScanned++;
     const lines = buf.toString("utf8").split("\n");
     for (let i = 0; i < lines.length; i++) {
-      re.lastIndex = 0;
+    re.lastIndex = 0;
       if (!re.test(lines[i])) continue;
       matches++;
+      // Terse default (context_lines=0): one line per hit, `file:line: text`.
+      if (contextLines <= 0) {
+        blocks.push(`${rel}:${i + 1}: ${truncateLine(lines[i].trim())}`);
+        if (matches >= maxResults) { capped = true; break; }
+        continue;
+      }
       const start = Math.max(0, i - contextLines);
       const end = Math.min(lines.length - 1, i + contextLines);
       const out = [`${rel}:${i + 1}`];

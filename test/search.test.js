@@ -30,9 +30,16 @@ test("file_glob_patterns only returns file list", async () => {
   assert.ok(!r.text.includes(":"), "no line numbers without regex");
 });
 
-test("content_regex returns matches with line numbers and context", async () => {
+test("content_regex returns terse file:line: text by default", async () => {
   const r = await doSearch({ file_glob_patterns: ["*.js"], content_regex: "processOrder", cwd: dir });
   assert.ok(r.meta.matches >= 2);
+  assert.match(r.text, /a\.js:2: /);
+  assert.ok(!/^> /m.test(r.text), "no verbose context markers in terse mode");
+  assert.ok(!r.text.includes("---"), "no block separators in terse mode");
+});
+
+test("context_lines>0 returns verbose context blocks", async () => {
+  const r = await doSearch({ file_glob_patterns: ["*.js"], content_regex: "processOrder", context_lines: 2, cwd: dir });
   assert.match(r.text, /a\.js:2/);
   assert.match(r.text, /^> /m);
 });
